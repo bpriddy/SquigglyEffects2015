@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <title>Playing with shaders</title>
+        <meta charset="utf-8">
+    </head>
+
+    <body>
+        <div id="container"></div>
+    </body>
+    <script type="text/javascript" src="script/dat.gui.js"></script>
+    <script src="script/three.js"></script>
+
+    <script type="x-shader/x-vertex" id="vertexShader">
+
+        varying vec3 vNormal;
+        varying vec3 Position;
+        uniform float extension;
+        uniform float time;
+        uniform float rotateX;
+        uniform float rotateY;
+        uniform float mouseX;
+        uniform float mouseY;
+        uniform float mouse;
+        uniform float spiky;
+        uniform float ripple;
+
+        //determines how the "spikes" are obtained
+        float rand(vec3 co){
+            // creates a smooth effect, with more spikes corresponding to a smaller a
+            if(spiky == 0.5){
+                float a = 0.8;
+                return fract(sin(co.x/a)*sin(co.y/a)*sin(co.x/a)*sin(co.y/a)*sin(co.z/a)*sin(co.z/a));
+            }
+            // noise function to create the many thin spikes
+            else if(spiky == 0.0){
+                return fract(sin(dot(co.xyz ,vec3(12.9898,78.233,39.825))) * 43758.5453);
+            }
+            // no spikes at all
+            else {
+                return 0.0;
+            }
+        }
+
+
+        void main() {
+            vNormal = normal;
+            vec3 newPosition = position;
+            vec3 n = normalize(position);
+
+            // calculates a rotation matrix to apply to the vertices
+            mat3 Xchange = mat3(1.0,0.0,0.0,
+                                0.0,cos(rotateX/3.14),-sin(rotateX/3.14),
+                                0.0,sin(rotateX/3.14),cos(rotateX/3.14));
+            mat3 Ychange = mat3(cos(rotateY/3.14),0.0,sin(rotateY/3.14),
+                                0.0, 1.0, 0.0,
+                                -sin(rotateY/3.14),0.0,cos(rotateY/3.14));
+            
+            //calculates distance of the position from (0,0,0)
+            float dist = pow(dot(position,position),0.5);
+
+            //this block is what causes the moving effect
+            if( time != 0.0){
+                newPosition.y = position.y + n.y*cos(position.y + time)*dist*0.07;
+                newPosition.x = position.x + n.x*cos(position.x + time)*dist*0.07;
+                newPosition.z = position.z + n.z*cos(position.z + time)*dist*0.07;
+            }
+
+            //this block causes the "spikyness"
+            float adjust = 0.0;
+            if(mouse == 0.0){
+                // turns mouse info into a vector
+                vec3 mouse3 = vec3(mouseX, mouseY, 0.0);
+                mouse3 *= Xchange;
+                mouse3 *= Ychange;
+
+                adjust = extension * rand(position.xyz) * (dot(vNormal,mouse3)*5.0);
+            }
+            else{
+                adjust = extension * rand(position.xyz) * dot(vNormal,vec3(sin(0.0001*time)*sin(time)*4.0,sin(time),cos(time)*cos(0.1*time)))*3.0;
+            }
+
+            //creates the ripple effect
+            newPosition += vNormal * (adjust- mod(adjust,ripple));
+
+            
+            //applies the matrix to both the vertex and the normal vector
+            newPosition *= Xchange;
+            newPosition *= Ychange;
+            vNormal     *= Xchange;
+            vNormal     *= Ychange;
+
+            gl_Position = projectionMatrix * modelViewMatrix *
+                          vec4( newPosition, 1.0);
+
+            Position = newPosition;
+        }
+
+
+    </script>
+    <script type="x-shader/x-vertex" id="fragmentShader">
+        varying vec3 vNormal;
+        varying vec3 Position;
+        uniform float red;
+        uniform float blue;
+        uniform float green;
+        uniform float cell;
+        uniform sampler2D texture;
+
+        void main() {
+            
+            // this is the color of the model itself
+            gl_FragColor = vec4(0.0,0.0,0.0,1.0);
+
+            // lets add light! (the top one)
+            vec3 white = vec3(red,green,blue);
+            vec3 light = vec3(0.0, 1.0, 0.2);
+            light = normalize(light);
+            float dProd =  dot(vNormal, light);
+            if (dProd > 0.0) {
+                gl_FragColor += vec4(white,1.0) * dProd;
+            }
+
+            // the bottom light is the opposite of the top one
+            vec3 black = vec3(1.0-red,1.0-green,1.0-blue);
+            vec3 light2 = vec3(0.0, -1.0, -0.2);
+            light2 = normalize(light2);
+            float dProd2 = dot(vNormal, light2);
+            if(dProd2 > 0.0) {
+                gl_FragColor += vec4(black,1.0) * dProd2;
+            }            
+
+            // this creates a cell shading effect
+            if(cell != 0.0){
+                gl_FragColor -= mod(gl_FragColor, cell);
+            }
+        }
+
+
+    </script>
+
+    <script src="script/main.js"></script>
+</html>
