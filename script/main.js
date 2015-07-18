@@ -1,16 +1,16 @@
 //local variables
 var controls,
-    container, 
-    renderer, 
-    scene, 
-    camera, 
+    container,
+    renderer,
+    scene,
+    camera,
     gui,
     sphere, torusKnot, octahedron, snake, skull,
     down   = false,
     mouseX = 0,
     mouseY = 0,
     start  = Date.now(),
-    fov    = 30;  
+    fov    = 30;
 
 // this variable contains all the values that is controled by the dat.gui
 var control = new function() {
@@ -34,37 +34,37 @@ var control = new function() {
 var changeShape = control.shape;
 
 // the main function that initializes the scene
-window.addEventListener( 'load', function() {       
+window.addEventListener( 'load', function() {
 
     // grab the container from the DOM
     container = document.getElementById( "container" );
     
     // create a scene
-    scene = new THREE.Scene();      
+    scene = new THREE.Scene();
 
     // create a camera the size of the browser window
-    camera = new THREE.PerspectiveCamera( 
-        fov, 
-        window.innerWidth / window.innerHeight, 
-        1, 
+    camera = new THREE.PerspectiveCamera(
+        fov,
+        window.innerWidth / window.innerHeight,
+        1,
         100000);
 
     // places the camera at the following x,y,z coordinate
     camera.position.z = 40;
     camera.position.x = 0;
     camera.position.y = 0;
-    camera.target = new THREE.Vector3( 0, 0, 0 );       
+    camera.target = new THREE.Vector3( 0, 0, 0 );
 
-    scene.add( camera );   
+    scene.add( camera );
 
-    // create a shader material      
+    // create a shader material
     material = new THREE.ShaderMaterial( {
 
-        uniforms: { 
+        uniforms: {
 
             time: { // passes in the time
-                type: "f", 
-                value: 0.0 
+                type: "f",
+                value: 0.0
             },
             red: { // determines red of the top light
                 type: "f",
@@ -128,7 +128,7 @@ window.addEventListener( 'load', function() {
         snake = new THREE.Mesh(geometry, material);
         snake.visible = false;
         snake.position.y = -2;
-        snake.position.z = -10
+        snake.position.z = -10;
         scene.add(snake);
     });
 
@@ -142,9 +142,13 @@ window.addEventListener( 'load', function() {
     
 
     // creates a simple geometry that has the shader material
-    sphere    = new THREE.Mesh(new THREE.SphereGeometry(5,100,100), material);
-    torusKnot = new THREE.Mesh(new THREE.TorusKnotGeometry(7,1,150,100),material);
-    octahedron     = new THREE.Mesh(new THREE.OctahedronGeometry(5),material);
+    sphere = new THREE.Mesh((new THREE.SphereGeometry(5,100,100)), material);
+    torusKnot = new THREE.Mesh((new THREE.TorusKnotGeometry(7,1,150,100)),material);
+    octahedron  = new THREE.Mesh(addVerts(new THREE.OctahedronGeometry(5)),material);
+    
+    /*to use addVerts, use the geometry from any shape as the argument. I have
+    been testing it with the octahedron because if it has more than six vertices
+    than vertices have been added*/ 
 
     //sets all but the torusKnot invisible to start
     sphere.visible = false;
@@ -161,7 +165,8 @@ window.addEventListener( 'load', function() {
 
     // sets background
     var texture = THREE.ImageUtils.loadTexture( 'images/sky.jpg');
-    var backgroundMesh = new THREE.Mesh( new THREE.PlaneGeometry(
+    texture.minFilter = THREE.NearestFilter;
+    var backgroundMesh = new THREE.Mesh( new THREE.PlaneBufferGeometry(
         window.innerWidth/7, window.innerHeight/7,0),
         new THREE.MeshBasicMaterial({map: texture}));
     // moves the texture back
@@ -169,7 +174,7 @@ window.addEventListener( 'load', function() {
     // adds the background to the scene
     scene.add(backgroundMesh);
     
-    container.appendChild( renderer.domElement );              
+    container.appendChild( renderer.domElement );
 
     // sets up the dat.GUI controls
     gui = new dat.GUI();
@@ -193,11 +198,11 @@ window.addEventListener( 'load', function() {
         Octahedron: 2, TorusKnot: 1, Sphere: 0
         }).onChange(render());
 
-    render();       
+    render();
 
-} );        
+} );
 
-function render() {    
+function render() {
     //controls various parts of the model
     material.uniforms[   'time'  ].value = control.speed/9.9 * (Date.now() - start);
     material.uniforms[   'red'   ].value = control.red;
@@ -293,3 +298,92 @@ document.addEventListener("mousemove", function(event){
 document.addEventListener("mouseup", function(event){
     down = false;
 });
+/*
+I wrote the function addVerts,and what it does is place a new vertex inside each
+triangle of the mesh. However, I am having trouble calculating the uvs for the 
+new faces, resulting in some... bizzare consequences. 
+Copy is simply a function that returns a deep copy of the array passed in.
+The other functions are copied striaght from the code inside three.js from 
+PolyhedronGeometry, and are used in calculating the new uvs.
+*/
+
+function addVerts(geometry){
+    verts = copy(geometry.vertices);
+    var l = verts.length;
+    for(j=0; j<3; j++){
+        for(i=j; i<=l-3; i= i+3){
+            //creates new vertex
+            vert = new THREE.Vector3();
+            var v1 = verts[i-j];
+            var v2 = verts[i-j+1];
+            var v3 = verts[i-j+2];
+            vert.addVectors(v1,v2);
+            vert.add(v3);
+            vert.divideScalar(3.0);
+            //calcs the new normal
+            norm = new THREE.Vector3();
+            norm.addVectors(v1.normalize(),v2.normalize());
+            norm.add(v3.normalize());
+            norm.divideScalar(3.0);
+            //creates the new faces
+            face1 = new THREE.Face3(i-j,i+1-j,i+3-j,[v1.normalize(),v2.normalize(),norm.normalize()]);
+            face2 = new THREE.Face3(i+1-j,i+2-j,i+3-j,[v2.normalize(),v3.normalize(),norm.normalize()]);
+            face3 = new THREE.Face3(i-j,i+2-j,i+3-j,[v1.normalize(),v3.normalize(),norm.normalize()]);
+            //calcs new UVs (in theory...)
+            var azi = azimuth( vert );
+            geometry.dynamic = true;
+            geometry.faces.push(face1);
+            geometry.faces.push(face2);
+            geometry.faces.push(face3);
+            geometry.elementsNeedUpdate = true;
+            geometry.vertices.splice(i+3-j,0,vert);
+            geometry.verticesNeedUpdate = true;
+            geometry.faceVertexUvs.splice(i+3-j,0,
+                correctUV( v1.uv, v1, azi ),
+                correctUV( v2.uv, v2, azi ),
+                correctUV( v3.uv, v3, azi ));
+            geometry.normalsNeedUpdate = true;
+        }   
+    }
+    return geometry;
+}
+
+function copy(o) {
+   var out, v, key;
+   out = Array.isArray(o) ? [] : {};
+   for (key in o) {
+       v = o[key];
+       out[key] = (typeof v === "object") ? copy(v) : v;
+   }
+   return out;
+}
+
+
+
+// Angle around the Y axis, counter-clockwise when looking from above.
+
+function azimuth( vector ) {
+
+    return Math.atan2( vector.z, - vector.x );
+
+}
+
+
+// Angle above the XZ plane.
+
+function inclination( vector ) {
+
+    return Math.atan2( - vector.y, Math.sqrt( ( vector.x * vector.x ) + ( vector.z * vector.z ) ) );
+
+}
+
+
+// Texture fixing helper. Spheres have some odd behaviours.
+
+function correctUV( uv, vector, azimuth ) {
+
+    if ( ( azimuth < 0 ) && ( uv.x === 1 ) ) uv = new THREE.Vector2( uv.x - 1, uv.y );
+    if ( ( vector.x === 0 ) && ( vector.z === 0 ) ) uv = new THREE.Vector2( azimuth / 2 / Math.PI + 0.5, uv.y );
+    return uv.clone();
+
+}

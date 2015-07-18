@@ -77,7 +77,9 @@
                 adjust = extension * rand(position.xyz) * (dot(vNormal,mouse3)*5.0);
             }
             else{
-                adjust = extension * rand(position.xyz) * dot(vNormal,vec3(sin(0.0001*time)*sin(time)*4.0,sin(time),cos(time)*cos(0.1*time)))*3.0;
+                adjust = extension * rand(position.xyz) * dot(vNormal,
+                    vec3(sin(0.0001*time)*sin(time)*4.0,
+                         sin(time),cos(time)*cos(0.1*time)))*3.0;
             }
 
             //creates the ripple effect
@@ -98,7 +100,7 @@
 
 
     </script>
-    <script type="x-shader/x-vertex" id="fragmentShader">
+    <script type="x-shader/x-fragment" id="fragmentShader">
         varying vec3 vNormal;
         varying vec3 Position;
         uniform float red;
@@ -135,8 +137,6 @@
                 gl_FragColor -= mod(gl_FragColor, cell);
             }
         }
-
-
     </script>
 
     <script src="script/main.js"></script>
